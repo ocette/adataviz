@@ -1,60 +1,145 @@
-import './style.css'
-import javascriptLogo from './assets/javascript.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import { setupCounter } from './counter.js'
+import "./style.css";
 
-document.querySelector('#app').innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${javascriptLogo}" class="framework" alt="JavaScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.js</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+let offset = 0;
+const limit = 20;
+const div = document.getElementById("app");
 
-<div class="ticks"></div>
+/* fonction pour nettoyer les textes */
+function cleanText(str) {
+  if (!str) return "";
+  return str.replace(/\.([^\s])/g, ". $1").trim();
+}
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank">
-          <img class="button-icon" src="${javascriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+/* création du DOM */
+function createSearchBar() {
+  const searchContainer = document.createElement("div");
+  searchContainer.className = "search-container";
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
+  const wrapper = document.createElement("div");
+  wrapper.className = "search-wrapper";
 
-setupCounter(document.querySelector('#counter'))
+  const icon = document.createElement("span");
+  icon.className = "icon";
+  icon.textContent = "🔍";
+
+  const searchInput = document.createElement("input");
+  searchInput.type = "search";
+  searchInput.placeholder = "Rechercher un nom";
+  searchInput.id = "searchBar";
+
+  wrapper.appendChild(icon);
+  wrapper.appendChild(searchInput);
+  searchContainer.appendChild(wrapper);
+  div.appendChild(searchContainer);
+
+  return searchInput;
+}
+
+function createListContainer() {
+  const listContainer = document.createElement("ul");
+  listContainer.id = "list";
+  div.appendChild(listContainer);
+  return listContainer;
+}
+
+function createLoadMoreButton() {
+  const loadMoreBtn = document.createElement("button");
+  loadMoreBtn.id = "loadMoreBtn";
+  loadMoreBtn.textContent = "Charger plus";
+  loadMoreBtn.className = "load-more";
+  div.appendChild(loadMoreBtn);
+  return loadMoreBtn;
+}
+
+/* fonction affichage des données */
+function createListItem(item) {
+  const li = document.createElement("li");
+
+  const desc1 = cleanText(item.desc1);
+  const extraText = [
+    cleanText(item.desc2),
+    cleanText(item.desc3),
+    cleanText(item.desc4),
+    cleanText(item.desc5),
+  ]
+    .filter((t) => t)
+    .join(" ");
+
+  li.innerHTML = `
+    <img class="portrait" src="${item.thumb_url}" />
+    <h2>${item.name}</h2>
+    <p>${desc1}</p>
+  `;
+
+  if (extraText.length > 0) {
+    const span = document.createElement("span");
+    span.className = "more hidden";
+    span.textContent = " " + extraText;
+    li.querySelector("p").appendChild(span);
+
+    const btn = document.createElement("button");
+    btn.textContent = "Voir plus";
+    btn.addEventListener("click", () => {
+      const hidden = span.classList.toggle("hidden");
+      btn.textContent = hidden ? "Voir plus" : "Voir moins";
+    });
+
+    li.appendChild(btn);
+  }
+
+  return li;
+}
+
+/* fonction fetch API */
+async function fetchApi(listContainer, loadMoreBtn) {
+  try {
+    const response = await fetch(
+      `https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/femmes-illustres-a-paris-portraits/records?limit=${limit}&offset=${offset}`,
+    );
+    const data = await response.json();
+
+    data.results.forEach((item) => {
+      const li = createListItem(item);
+      listContainer.appendChild(li);
+    });
+
+    if (!loadMoreBtn && data.results.length === limit) {
+      const btn = createLoadMoreButton();
+      btn.addEventListener("click", () => {
+        offset += limit;
+        fetchApi(listContainer, btn);
+      });
+    }
+
+    if (data.results.length < limit) {
+      const btn = document.getElementById("loadMoreBtn");
+      if (btn) btn.remove();
+    }
+  } catch (error) {
+    div.innerHTML = "<p>Impossible de charger les données.</p>";
+    console.error(error);
+  }
+}
+
+/* fonction barre de recherche */
+function setupSearch(searchInput, listContainer) {
+  searchInput.addEventListener("input", () => {
+    const value = searchInput.value.toLowerCase();
+    const items = listContainer.querySelectorAll("li");
+
+    items.forEach((item) => {
+      const name = item.querySelector("h2").textContent.toLowerCase();
+      item.style.display = name.includes(value) ? "block" : "none";
+    });
+  });
+}
+
+/* fonction qui initialise  */
+function initialisation() {
+  const searchInput = createSearchBar();
+  const listContainer = createListContainer();
+  setupSearch(searchInput, listContainer);
+  fetchApi(listContainer, null);
+}
+
+initialisation();
